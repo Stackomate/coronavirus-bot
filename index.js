@@ -509,9 +509,9 @@ const sendCurrentCount = async (chatId) => {
 * Secretarias e Municípios: Dados Atualizados em ${lastUnofficialUpdate}
 ` +
 (iValue ? `
-🔄 Freq. mínima. de notificação: ${iValue} minutos.
+🔄 Freq. mínima de notificação: ${iValue} minutos.
 ` : `
-🔄 Freq. mínima. de notificação: instantânea.
+🔄 Freq. mínima de notificação: instantânea.
 `) + (iStartHour ? `
 ⏰ Notificações restritas ao período ${iStartHour}h-${iEndHour}.
 `: `
