@@ -7,3 +7,11 @@ chromedriver
 db.json
 # Environment Variables (contains secret data, e.g.: the bot token)
 .env
+# log file
+log.log
+contato.log
+graph.png
+map.png
+credentials.json
+token.json
+sheets.csv
