@@ -4,6 +4,8 @@ const fs = require('fs');
 const readline = require('readline');
 const { google } = require('googleapis');
 
+const sheetsFilePath = process.env.SHEETS_FILE_PATH;
+
 // If modifying these scopes, delete token.json.
 const SCOPES = ['https://www.googleapis.com/auth/drive.readonly'];
 // The file token.json stores the user's access and refresh tokens, and is
@@ -122,15 +124,14 @@ function downloadFile(resolve, reject) {
 
     Promise.all([getModifiedTime(drive, fileId), exportToCSV(drive, fileId)]).then(([time, data]) => {
 
-      console.log('Received', data);
-      fs.writeFileSync('./sheets.csv', data);
+      fs.writeFileSync(sheetsFilePath, data);
       
       const results = []
       let totalCount = null;
       let stateInfo = [];
       
       require('fs').createReadStream(
-        require('path').relative(__dirname, `./sheets.csv`)
+        require('path').relative(__dirname, sheetsFilePath)
       ).pipe(
         require('csv-parser')(['Estado', 'Casos'])
       ).on('data', (data) => {
@@ -138,18 +139,13 @@ function downloadFile(resolve, reject) {
       }).on('end', () => {
         stateInfo = results.slice(3).map(i => ({ state: i[1], cases: i[2] }));
         totalCount = results[3]['2'];
-        /* TODO: Use date of last file modification */
-        resolve({ totalCount: parseInt(totalCount), stateInfo, /* deaths, onlyCases: totalCount - deaths,*/ date: new Date(time).toLocaleString("pt-BR") });
+        resolve({ totalCount: parseInt(totalCount), stateInfo, date: new Date(time).toLocaleString("pt-BR") });
       })
 
     }).catch(e => {
       console.log('ERRORED', e)
       reject(e);
     })
-
-
-
-
   }
 }
 
