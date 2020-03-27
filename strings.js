@@ -62,10 +62,139 @@ Por essa razão, é atualizada com mais frequencia. Pode conter duplicidade de c
 Agradecimentos a https://twitter.com/CoronavirusBra1, https://twitter.com/wlcota, e https://twitter.com/PokeCorona pelo esforço em manter a contagem atualizada.
 `;
 
+const noAdminConfigured = `
+❌ <b>Erro:</b> Configurar primeiro <b>ADMIN_ID</b>
+`
+
+const notAuthorized = `
+❌ <b>Erro:</b> Não autorizado!
+`
+
+const addChannelAttempt = ({channel}) => `
+Tentando conectar ao canal <b>${channel}</b>
+
+ℹ️ <b>Importante:</b> Lembre-se de adicionar @coronavirusbrbot como <b>Administrador</b> no canal <b>${channel}</b>.     
+`
+
+const channelAlreadySubscribed = ({channel}) => `
+❌ <b>Erro:</b> O canal <b>${channel}</b> já está inscrito no Bot.
+
+ℹ️ <b>Importante:</b> Lembre-se de adicionar @coronavirusbrbot como <b>Administrador</b> no canal <b>${channel}</b>. 
+
+ℹ️ <b>Dica:</b> Caso queira parar as notificações do bot em ${channel}, basta remove-lo do canal. Obrigado!     
+            
+            `
+
+const activateChannel = ({channel}) => `<b>CoronavirusBRBot:</b> Ativando Notificações para este Canal (${channel})`
+
+const channelSubscribed = ({channel}) => `
+✅ <b>Sucesso!</b> Conectado ao canal <b>${channel}</b>
+
+ℹ️ <b>Dica:</b> Caso queira parar as notificações do bot em ${channel}, basta remove-lo do canal. Obrigado!     
+`
+
+const channelConnectError = ({channel}) => `
+❌ <b>Erro:</b> Nao consegui me conectar ao canal <b>${channel}</b>
+
+ℹ️ <b>Importante:</b> Lembre-se de adicionar @coronavirusbrbot como <b>Administrador</b> no canal <b>${channel}</b>.     
+`
+
+const stateCases = ({resultSheets, lastSheetsUpdate}) => `
+<b> Casos nos Estados: </b>
+<pre>
+${resultSheets}
+</pre>
+* Dados atualizados em ${lastSheetsUpdate}
+
+Para mais informações, digite /faq
+`
+
+const stateDeaths = ({result, lastWCotaUpdateTime}) => `
+<b> Óbitos nos Estados: </b>
+<pre>
+${result}
+</pre>
+* Dados atualizados em ${lastWCotaUpdateTime}
+
+Para mais informações, digite /faq
+`
+
+const contactThankYou = `
+Obrigado por entrar em contato conosco. Suas sugestões, críticas e opiniões valem muito para nós.
+Sua mensagem foi enviada com sucesso.   
+`
+
+/* TODO: 
+    - Recuperados: <b>${lastSheetsTotalRecovered}</b>
+*/
+
+const startCount = ({
+    lastSheetsCasesCount, lastSheetsUpdate, lastMSCasesCount, lastMSDeathsValue, lastMSUpdate, 
+    iValue, iStartHour, iEndHour, userUnofficialCases, userMSCases, userMSDeaths,
+    lastSheetsTotalSuspects, lastSheetsTotalRecovered,
+    userSuspects, userRecovered
+}) => `
+Contagem no <b>Brasil:</b> 🇧🇷
+
+<b>- Secretarias e Municípios:</b>
+    - Casos: <b>${lastSheetsCasesCount}</b>${userUnofficialCases !== lastSheetsCasesCount ? ` ❗(${lastSheetsCasesCount - userUnofficialCases} novos)`: ``}
+    - Suspeitos: <b>${lastSheetsTotalSuspects}</b>
+
+<b>- Ministério da Saúde (oficial):</b> 
+    - Casos: <b>${lastMSCasesCount}</b>${userMSCases !== lastMSCasesCount ? ` ❗(${lastMSCasesCount - userMSCases} novos)`: ``}
+    - Óbitos: <b>${lastMSDeathsValue}</b>${(userMSDeaths < lastMSDeathsValue) ? ` ❗(${lastMSDeathsValue - userMSDeaths} novos) 😔`: ``}
+
+<b>- Estados:</b>  /estados   
+    - Casos: /estados_casos
+    - Óbitos: /estados_obitos    
+
+<b>- Gráficos:</b>  /graficos    
+`
++
+`
+* S&M: Dados atualizados em ${lastSheetsUpdate}
+* MS: ${lastMSUpdate} 
+* Para detalhes, use /faq
+
+`        
++ 
+(iValue ? `
+🔄 Freq. mínima de notificação: ${iValue} minutos.` : `🔄 Freq. mínima de notificação: instantânea.`) + (iStartHour ? `
+⏰ Notificações restritas ao período ${iStartHour}h-${iEndHour}.
+`: `
+⏰ Notificações irrestritas (0h-24h).
+`)
+
+const graphCaption = (time) => `<b>Gráfico de Casos no Brasil</b>
+
+* Imagem capturada em ${time}. Veja o gráfico interativo na fonte.
+
+<b>- Créditos: </b> Wesley Cota
+<b>- Fonte:</b> https://labs.wesleycota.com/sarscov2/br/`;
+
+const mapCaption = (time) => `<b>Mapa de Casos no Brasil</b>
+
+* Imagem capturada em ${time}. Veja o mapa interativo na fonte.
+
+<b>- Créditos: </b> Wesley Cota
+<b>- Fonte:</b> https://labs.wesleycota.com/sarscov2/br/`;
+
 module.exports = {
     startMsg,
     stopMsg,
     helpMsg,
     usersMsg,
-    faq
+    faq,
+    noAdminConfigured,
+    notAuthorized,
+    addChannelAttempt,
+    channelAlreadySubscribed,
+    activateChannel,
+    channelSubscribed,
+    stateCases,
+    stateDeaths,
+    contactThankYou,
+    startCount,
+    graphCaption,
+    mapCaption
 }
