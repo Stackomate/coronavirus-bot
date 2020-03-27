@@ -11,6 +11,9 @@ const updateGraphs = async () => {
     await driver.executeScript("document.querySelector('#map').scrollIntoView(false)");
     await driver.sleep(2000);
     let result = await driver.findElement(By.id('map')).takeScreenshot();
+    require('child_process').execSync('cp map.png map.backup.png && cp graph.png graph.backup.png', {
+        cwd: __dirname
+    })
     require('fs').writeFileSync('map.png', result, 'base64')
 
     await driver.executeScript("document.querySelector('#plotlydiv').scrollIntoView(false)");
@@ -20,7 +23,9 @@ const updateGraphs = async () => {
 
     await driver.quit();
 
+    return new Date().toLocaleString("pt-BR");
+
     
 }
 
-updateGraphs()
+module.exports = updateGraphs;
