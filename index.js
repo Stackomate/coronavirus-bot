@@ -3,61 +3,181 @@ require('dotenv').config()
 
 const TelegramBot = require('node-telegram-bot-api');
 
+/* Secret, Personal Telegram Token given by botfather */
 const token = process.env.BOT_TOKEN;
 
-
+const AsciiTable = require('ascii-table');
 const { Builder, By, until } = require('selenium-webdriver');
 
+const fs = require('fs');
+const strings = require('./strings')
 
+/* DB-Related */
 const low = require('lowdb')
 const FileSync = require('lowdb/adapters/FileSync')
-
 const adapter = new FileSync('db.json')
 const db = low(adapter)
-
 // Set some defaults (required if your JSON file is empty)
-db.defaults({ 
-    chats: [], count: null, unofficialCount: null, deaths: '0', log: [], MSUpdate: '', unofficialUpdate: '' 
+db.defaults({
+    chats: [],
+    count: null,
+    unofficialCount: null,
+    unofficialStateInfo: null,
+    unofficialDeaths: null,
+    deaths: '0',
+    MSUpdate: '',
+    unofficialUpdate: '',
+    sheetsCount: null,
+    sheetsUpdate: '',
+    sheetsStateInfo: null,
+    sheetsStateSuspects: null,
+    sheetsStateRecovered: null,
+    sheetsTotalSuspects: null,
+    sheetsTotalRecovered: null,
+    mapImageFileId: null,
+    graphImageFileId: null,
+    graphsUpdateTime: null
 }).write()
 
-let lastValue = db.get('count').value();
-let lastDeathsValue = db.get('deaths').value();
-let lastMSUpdate = db.get('MSUpdate').value();
-let lastUnofficialUpdate = db.get('unofficialUpdate').value();
 
-const updateCount = async function () {
+/** Last Cases Count from MS */
+let lastMSCasesCount = db.get('count').value();
+/** Last Deaths Count from MS */
+let lastMSDeathsValue = db.get('deaths').value();
+/** Last time for MSUpdate */
+let lastMSUpdate = db.get('MSUpdate').value();
+/** Last time for Wcota Update */
+let lastWCotaUpdateTime = db.get('unofficialUpdate').value();
+/** Last WCota state table data */
+let lastWCotaStateInfo = db.get('unofficialStateInfo').value();
+/** Last WCota Cases Count */
+let lastWCotaCasesCount = db.get('unofficialCount').value();
+/** Last WCota Deaths Count */
+let lastWCotaDeathsCount = db.get('unofficialDeaths').value();
+
+/** Last Cases Count from Sheets */
+let lastSheetsCasesCount = db.get('sheetsCount').value()
+/** Last time for Sheets update */
+let lastSheetsUpdate = db.get('sheetsUpdate').value()
+/** Last Sheets state table data */
+let lastSheetsStateInfo = db.get('sheetsStateInfo').value();
+
+let lastSheetsStateRecovered = db.get('sheetsStateRecovered').value();
+let lastSheetsTotalRecovered = db.get('sheetsTotalRecovered').value();
+
+let lastSheetsStateSuspects = db.get('sheetsStateSuspects').value();
+let lastSheetsTotalSuspects = db.get('sheetsTotalSuspects').value();
+
+/** Used for /debug command */
+let lastDebug = {}
+/** Used by admin to send bulk messages */
+let admBulkMessages = {}
+
+/* 
+    Important! I froze my computer because I did not have this defined.
+    Time to update in miliseconds.
+ */
+const timeToUpdate = 1000 * 60 * 15; // 15 minutes
+
+
+/** Fetch latest cases information from Sheets, then update DB and variables */
+const updateSheets = async function () {
+    try {
+        const {
+            totalCount, stateInfo, date,
+            totalSuspects, stateSuspects,
+            totalRecovered, stateRecovered
+        } = await (require('./google-drive')())
+
+        lastSheetsCasesCount = totalCount;
+        db.set('sheetsCount', lastSheetsCasesCount).write()
+        lastSheetsUpdate = date;
+        db.set('sheetsUpdate', lastSheetsUpdate).write()
+        lastSheetsStateInfo = stateInfo;
+        db.set('sheetsStateInfo', lastSheetsStateInfo).write()
+
+        lastSheetsTotalSuspects = totalSuspects;
+        db.set('sheetsTotalSuspects', lastSheetsTotalSuspects).write();
+
+        lastSheetsStateSuspects = stateSuspects;
+        db.set('sheetsStateSuspects', lastSheetsStateSuspects).write();
+
+        lastSheetsTotalRecovered = totalRecovered;
+        db.set('sheetsTotalRecovered', lastSheetsTotalRecovered).write();
+
+        lastSheetsStateRecovered = stateRecovered;
+        db.set('sheetsStateRecovered', lastSheetsStateRecovered).write();
+
+        const item = {
+            action: 'update sheets values',
+            totalCount,
+            stateInfo,
+            date,
+            totalSuspects,
+            stateSuspects,
+            totalRecovered,
+            stateRecovered
+        };
+        /* TODO: Use transaction here */
+        addToLog(item);
+    } catch (e) {
+        const item = {
+            action: 'fail sheets update',
+            error: e.toString()
+        };
+        /* TODO: Use transaction here */
+        addToLog(item);
+    }
+}
+
+/** Update MS Cases, Deaths, Update Time (from page). */
+const updateMS = async function () {
     let driver = await new Builder().forBrowser('chrome').build();
     try {
-        await driver.get('http://plataforma.saude.gov.br/novocoronavirus/#COVID-19-brazil');
-        await driver.wait(until.elementTextMatches(driver.findElement(By.id('BRCardCases')), /.+/ ), 45000);
+        await driver.get('https://covid.saude.gov.br')
+        let allCardElements = await driver.findElements(By.className('card-total'));
+        await driver.wait(until.elementTextMatches(allCardElements[2], /Casos Confirmados/), 45000);
 
-        const element = await driver.findElement(By.id('BRCardCases'));
+        const element = allCardElements[2];
+        console.log('element', (await (element.getAttribute('innerText'))))
+        
+        if ((await (element.getAttribute('innerText'))).indexOf('Casos Confirmados') === -1) {
+            throw new Error('Could not find confirmed cases')
+        }
+
         /* TODO: */
-        const newValue = (await (element.getAttribute('innerText'))).split(' ')[0];
-        const eDeaths = await driver.findElement(By.id('BRCardDeaths'));
-        const newDeaths = (await (eDeaths.getAttribute('innerText'))).split(' ')[0];
+        /* Need to rerun to avoid stale element error. Why? */
+        allCardElements = await driver.findElements(By.className('card-total'))
+        const newValue = (await (element.getAttribute('innerText'))).split('\n')[0].replace(/\./g, '');
+        const eDeaths = allCardElements[3];
 
-        const eMS = await driver.findElement(By.className('text-muted'));
-        const newMS = (await (eMS.getAttribute('innerText')));
+        if ((await (eDeaths.getAttribute('innerText'))).indexOf('Óbitos') === -1) {
+            throw new Error('Could not find death count')
+        }        
 
+        const newDeaths = (await (eDeaths.getAttribute('innerText'))).split('\n')[0].replace(/\./g, '');
 
-        // const newValue = getRandomInt(0, 2)
+        allCardElements = await driver.findElements(By.className('card-total'))
+        const eMS = allCardElements[1];
+        const newMS = (await (eMS.getAttribute('innerText'))).replace('\n', ' em ');
+
         if (newValue === '') {
             throw new Error('Empty Value as result')
         }
         const item = {
             action: 'update value',
-            value: newValue,
+            count: newValue,
+            deaths: newDeaths,
+            updateTime: newMS
         };
         /* TODO: Use transaction here */
         addToLog(item);
-        db.set('count', newValue).write();
-        lastValue = newValue;
-        db.set('deaths', newDeaths).write();
-        lastDeathsValue = newDeaths;
-        console.log("DEATHS", lastDeathsValue)
-        db.set('MSUpdate', newMS).write()
-        lastMSUpdate = newMS;
+        // db.set('count', newValue).write();
+        // lastMSCasesCount = newValue;
+        // db.set('deaths', newDeaths).write();
+        // lastMSDeathsValue = newDeaths;
+        // db.set('MSUpdate', newMS).write()
+        // lastMSUpdate = newMS;
         await driver.quit();
         return newValue;
     } catch (e) {
@@ -72,165 +192,295 @@ const updateCount = async function () {
     }
 };
 
-let lastUnofficialValue = db.get('unofficialCount').value();
-
-
-const updateUnofficialCount = async function () {
+/** Update WCota Cases, Deaths, StateInfo and Count */
+const updateWCota = async function () {
     try {
         /* TODO: */
-        const {newValue, date} = await require('./unofficial')();
+        const { newValue, date, deaths: udeaths, stateInfo } = await require('./unofficial')();
         if (newValue === '') {
             throw new Error('Empty Value as result')
         }
         const item = {
-            action: 'update unofficial value',
+            action: 'update WCota values',
             value: newValue,
             date
         };
         /* TODO: Use transaction here */
         addToLog(item);
         db.set('unofficialCount', newValue).write();
-        lastUnofficialValue = newValue;
+        lastWCotaCasesCount = newValue;
         db.set('unofficialUpdate', date).write();
-        lastUnofficialUpdate = date;
+        lastWCotaUpdateTime = date;
+        db.set('unofficialDeaths', udeaths).write();
+        lastWCotaDeathsCount = udeaths;
+        db.set('unofficialStateInfo', stateInfo).write();
+        lastWCotaStateInfo = stateInfo;
+
         return newValue;
     } catch (e) {
         const item = {
-            action: 'fail update unofficial',
+            action: 'fail update WCota',
             value: e.toString(),
         };
         addToLog(item)
-        console.log('Failed to Update:', e)
         return null;
     }
 };
 
 
+/* TODO: Check one by one user */
 const maybeSendUpdates = async () => {
-    let previousValue = lastValue;
-    let previousUnofficial = lastUnofficialValue;
-    let previousDeaths = lastDeathsValue;
-    await updateCount();
-    await updateUnofficialCount();
-    if ((previousValue !== lastValue) || (previousUnofficial !== lastUnofficialValue) || (previousDeaths !== lastDeathsValue)) {
-        sendUpdates();
-    } else {
-        addToLog({
-            action: 'No Changes In Count',
-            count: lastValue,
-            unofficial: lastUnofficialValue
-        })
-    }
-}
 
-async function asyncForEach(array, callback) {
-    for (let index = 0; index < array.length; index++) {
-      await callback(array[index], index, array);
-    }
-}
+    /* TODO: Reenable once MS is working */
+    await updateMS();
+    await updateWCota();
+    await updateSheets();
 
-const sendUpdates = async () => {
-    let chats = db.get('chats').value();
+    /* Filtering first in order to avoid useless timeouts */
+    const availableChats = db.get('chats').filter((chat) => shouldMessageChatId(chat.id));
+    const outdatedChats = availableChats.filter((chat) => chatNumbersAreSame(chat.id) === false).value();
 
-    asyncForEach(chats, async (chat) => {
-        await maybeSendCurrentCount(chat.id);
+    console.log({
+        total: db.get('chats').value().length,
+        availableNow: availableChats.value().length,
+        availableAndOutdated: outdatedChats.length
     })
+
+    sendUpdates(outdatedChats);
 }
 
-const maybeSendCurrentCount = async (chatId) => {
-    /* min * sec (60) * millisec (1000) */
-    let interval = db.get('chats').find({id: chatId}).value().interval;
-    let toAdd = (interval || 0) * 60 * 1000;
-    let lastSent = db.get('chats').find({id: chatId}).value().lastSent;
-    let lastSentTime = lastSent ? new Date(lastSent).getTime() : 0;
-    let nextTime = lastSentTime + toAdd;
-    let currTime = new Date().getTime();
+/** This handy function will add an object to log and console.log it */
+const addToLog = (obj) => {
+    console.log(obj);
+    let a = {
+        ...obj,
+        _time: new Date().toUTCString()
+    };
+    /* This was a the performance bottleneck at first.
+    Instead of saving in the db, we use a append-only method to a plain file */
+    fs.appendFileSync('log.log', JSON.stringify(a) + `\n`);
+}
 
-    let startHour = (db.get('chats').find({id: chatId}).value().startHour || 0);
-    let endHour = (db.get('chats').find({id: chatId}).value().endHour || 24);
+/** Send updates to the chat users.
+ * Replacement: optional. if not provided will be the whole list of chats
+ * customMethod: optional. If not provided will be "sendCurrentCount". This method is the "action" that will be fired (send message, photos, etc)
+ */
+const sendUpdates = async (replacement, customMethod) => {
+    let chats = replacement || db.get('chats').value();
+
+    /** Total number of requests */
+    let total = chats.length;
+
+    /** For benchmarking */
+    let startBenchmark = Date.now();
+
+    /** Requests still to be made */
+    let missingConnections = total;
+
+    /** Set with all error strings. Useful for debugging */
+    let errors = new Set();
+
+    /** Target number of requests per second */
+    let requestsPerSecond = 25;
+    let successRequests = 0;
+    let erroredRequests = 0;
+
+    /** Requests that have been asked to skip */
+    let skipped = 0;
+
+    /** Indexer */
+    let i = 0;
+
+    /* Start the calls and get a reference to interval.
+    This method will parallelize the Telegram API server requests */
+    let ref = setInterval(() => {
+        if (i < total) {
+            const callbackFactory = (p, q, r) => (worked) => {
+                switch (worked) {
+                    case true:
+                        successRequests++;
+                        break;
+                    case 'skip':
+                        skipped++;
+                        break;
+                    default:
+                        erroredRequests++;
+                        errors.add(worked);
+                        break;
+                }
+                console.log('finished', p, q, r);
+                missingConnections--;
+                console.log('missing', missingConnections);
+
+                /* Once all requests have been made (succeeded or failed, doesnt matter) */
+                if (missingConnections === 0) {
+                    let seconds = (Date.now() - startBenchmark) / 1000;
+                    let summary = {
+                        action: 'Finish Bulk Send',
+                        seconds,
+                        success: successRequests,
+                        errors: erroredRequests,
+                        errorCount: erroredRequests,
+                        skipped,
+                        total,
+                        opsSecond: total / seconds,
+                        requestsPerSecond,
+                        errors: [...errors]
+                    };
+                    addToLog(summary);
+                    lastDebug = summary;
+
+                    /* Erase unreachable users/groups. Bye! */
+
+                    const unreachable = db.get('chats').filter(i => i.wipe >= 2).value();
+                    db.get('chats').remove(i => i.wipe >= 2).write();
+
+                    addToLog({
+                        action: 'Erase subscriptions',
+                        items: unreachable
+                    })
+                    /* TODO: Merge code with stop */
+                }
+            }
+            /* TODO: How can chats[i] not exist? Cancelled? */
+            console.log('firing', i, total, chats[i] && chats[i].id)
+            /* TODO: Not enough in some cases? */
+            if (chats[i] && chats[i].id) {
+                maybeSendCurrentCount(chats[i].id, customMethod).then(
+                    /* TODO: Analyze */
+                    callbackFactory(i, total, chats[i] && chats[i].id)
+                )
+            } else {
+                addToLog({
+                    action: 'Report Inexistent Chat Item',
+                    i
+                })
+            }
+
+            i++;
+        } else {
+            addToLog({
+                action: 'Clear Request Manager Interval'
+            })
+            clearInterval(ref)
+        }
+    }, 1000 / requestsPerSecond);
+}
+
+/** Check whether chatId can receive a notification in the moment */
+const hourCheck = (chatId, log = false) => {
+    const obj = db.get('chats').find({ id: chatId }).value()
+    let startHour = obj.startHour || 0;
+    let endHour = obj.endHour || 24;
     let currHour = new Date().getHours();
     let passHourTest = (startHour <= currHour) && (currHour < endHour);
-
-    if ((currTime > nextTime) && passHourTest) {
-        await sendCurrentCount(chatId);
-    } else {
+    if (log === true) {
         addToLog({
-            action: 'Skip Send Count',
-            chatId,
-            nextTime,
-            currTime,
+            action: 'checkHourRange',
             startHour,
             endHour,
             currHour,
+            passHourTest
+        })
+    }
+    return passHourTest;
+}
+
+/** Check if chatId can receive notification in the moment,
+ * based on the minimum time for notification.
+ */
+const intervalCheck = (chatId, log = false) => {
+    const obj = db.get('chats').find({ id: chatId }).value();
+    let interval = obj.interval;
+    let toAdd = (interval || 0) * 60 * 1000; /* min * sec (60) * millisec (1000) */
+    let lastSent = obj.lastSent;
+    let lastSentTime = lastSent ? new Date(lastSent).getTime() : 0;
+    let nextTime = lastSentTime + toAdd;
+    let currTime = new Date().getTime();
+    if (log === true) {
+        addToLog({
+            action: 'checkIntervalRange',
+            nextTime,
+            currTime,
             toAdd
         })
     }
+    return (currTime > nextTime);
 }
 
-/* 
-    Important! I froze my computer because I did not have this defined.
-    Time to update in miliseconds.
- */
+/** Check if chatId can receive message in the moment */
+const shouldMessageChatId = (chatId, log = false) => intervalCheck(chatId, log) && hourCheck(chatId, log);
 
- /* TODO: */
-const timeToUpdate = 1000 * 60 * 15; // 15 minutes
-// const timeToUpdate = 1000 * 60 * 1; // 1 minute
+/** Only sends a notification in case chatId is "available" at the time */
+const maybeSendCurrentCount = async (chatId, customMethod) => {
+    if (shouldMessageChatId(chatId, true)) {
+        if (customMethod) {
+            console.log('Using Custom Method', customMethod)
+        }
+        /* Providing force = false to avoid re-sending to those with same values */
+        let returnOfFn = await ((customMethod || sendCurrentCount(false))(chatId));
+        return (returnOfFn === false) ? 'skip' : returnOfFn;
+    } else {
+        addToLog({
+            action: 'Skip Send Count',
+            chatId
+        })
+        /* TODO: Use symbol */
+        return 'skip';
+    }
+}
 
+/* Kickoff initial and periodic update checks */
 maybeSendUpdates();
 setInterval(maybeSendUpdates, timeToUpdate)
 
-
-const addToLog = (obj) => {
-    console.log(obj);
-    db.get('log').push({
-        ...obj,
-        _time: new Date().toUTCString()
-    }).write();
-}
-
+/* Instantiate the bot and set the commands */
 const bot = new TelegramBot(token, { polling: true });
+
 bot.onText(/\/start/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const resp = match[1];
+
     const startChatAction = {
         action: 'chat id receive start',
         chatId
     }
     addToLog(startChatAction);
-    /* TODO: Use object instead */
-    if (db.get(`chats`).find({id: chatId}).value() === undefined) {
+
+    const chatObj = db.get(`chats`).find({ id: chatId }).value();
+
+    if (chatObj === undefined) {
 
         addToLog({
             action: 'New subscription',
             chatId,
         })
 
-        let startSubscription = `Bem-vindo! Você receberá atualizações sobre o número de casos confirmados de COVID-19 no Brasil.
-
-Para ver os comandos possíveis, utilize /ajuda.    
-    `;
-        await bot.sendMessage(chatId, startSubscription);
+        let startSubscription = strings.startMsg;
+        await bot.sendMessage(chatId, startSubscription, { parse_mode: 'HTML' });
         addToLog({
             action: 'send message',
             message: startSubscription,
             chatId
-        })        
+        })
 
+        /* Insert new chatId to Chats array in database */
         db.get('chats').push({
             id: chatId,
-            lastValue: null,
-            lastUnofficial: null,
-            lastSent: null
+            lastValue: lastMSCasesCount,
+            lastUnofficial: lastSheetsCasesCount,
+            lastMSDeaths: lastMSDeathsValue,
+            lastSent: new Date().toString(),
+            wipe: 0
         }).write()
 
-        await sendCurrentCount(chatId);
+        await sendCurrentCount(true)(chatId);
 
     } else {
         addToLog({
             action: 'Existent Subscription, no changes',
             chatId,
-        }) 
-        await sendCurrentCount(chatId);
+        })
+        await sendCurrentCount(true)(chatId);
     }
 });
 
@@ -240,48 +490,45 @@ bot.onText(/\/stop/, async (msg, match) => {
         action: 'chat id receive stop',
         chatId
     }
-    addToLog(stopChatAction);    
+    addToLog(stopChatAction);
 
-    if (db.get(`chats`).find({id: chatId}).value() !== undefined) {
+    const chatObj = db.get(`chats`).find({ id: chatId }).value();
+    if (chatObj !== undefined) {
         addToLog({
             action: 'Cancel subscription',
             chatId
-        })        
+        })
 
         db.get(`chats`).remove((i) => i.id === chatId).write();
-        let cancelSubscription = `Inscricao Cancelada. Voce nao recebera mais atualizacoes. Obrigado por usar o bot :)`;
-        await bot.sendMessage(chatId, cancelSubscription);
+        let cancelSubscription = strings.stopMsg;
+        await bot.sendMessage(chatId, cancelSubscription, { parse_mode: 'HTML' });
         addToLog({
             action: 'send message',
             message: cancelSubscription,
             chatId
         })
 
-
-
     } else {
         addToLog({
             action: 'Cannot Stop Inexistent Subscription',
             chatId
-        })         
-
-
+        })
     }
-
 })
 
 bot.onText(/\/intervalo (\d{1,4})/, async (msg, match) => {
 
     const chatId = msg.chat.id;
+    const chatObj = db.get('chats').find({ id: chatId }).value();
 
-    if (db.get('chats').find({id: chatId}).value() === undefined) {
+    if (chatObj === undefined) {
         let msg = `Voce precisa estar inscrito para usar este comando.`
         await bot.sendMessage(chatId, msg);
         addToLog({
             action: 'send message',
             chatId,
             message: msg
-        })        
+        })
         return;
     }
 
@@ -290,14 +537,14 @@ bot.onText(/\/intervalo (\d{1,4})/, async (msg, match) => {
     try {
         time = parseInt(timeUnsafe)
 
-        let configMessage;        
+        let configMessage;
         if (time !== 0) {
-            configMessage = `Configurando intervalo minimo para ${time} minutos.`;
+            configMessage = `Configurando intervalo mínimo para <b>${time} minutos.</b>`;
         } else {
-            configMessage = `Removendo intervalo minimo de notificacao.`
+            configMessage = `Removendo intervalo mínimo de notificacao.`
         }
 
-        await bot.sendMessage(chatId, configMessage);
+        await bot.sendMessage(chatId, configMessage, { parse_mode: 'HTML' });
         addToLog({
             action: 'send message',
             chatId,
@@ -306,26 +553,24 @@ bot.onText(/\/intervalo (\d{1,4})/, async (msg, match) => {
 
         if (time !== 0) {
             /* Using value to batch with next change (addToLog will write) */
-            db.get('chats').find({id: chatId}).assign({
+            db.get('chats').find({ id: chatId }).assign({
                 interval: time
             }).value();
-
             addToLog({
                 action: 'Add interval to chatId',
                 chatId,
                 time
-            })        
+            })
         } else {
             /* Using value to batch with next change (addToLog will write) */
-            db.get('chats').find({id: chatId}).unset('interval').value();
-
+            db.get('chats').find({ id: chatId }).unset('interval').value();
             addToLog({
                 action: 'Remove interval from chatId',
                 chatId
-            })                  
+            })
         }
 
-        await sendCurrentCount(chatId);
+        await sendCurrentCount(true)(chatId);
 
     } catch (e) {
         let errMessage = 'Nao entendi o numero que voce digitou. Operacao cancelada.';
@@ -334,60 +579,454 @@ bot.onText(/\/intervalo (\d{1,4})/, async (msg, match) => {
             action: 'send message',
             chatId,
             errMessage
-        })        
+        })
     }
 
 })
 
+
 bot.onText(/\/ajuda/, async (msg, match) => {
     const chatId = msg.chat.id;
 
-    let resultMsg = `
-<b>/start</b> - Inicia a inscrição para atualizacoes (caso nao inscrito), e envia o numero atual de casos.
-<b>/stop</b> - Desativa a inscrição
-<b>/intervalo</b> <i>[minutos]</i> - diminua a frequência de mensagens. Por exemplo, <code>/intervalo 45</code> garante que você não irá receber duas mensagens seguidas em um período de 45 minutos. Para voltar ao padrão, utilize <code>/intervalo 0</code>
-<b>/horario</b> <i>[comeco] [fim]</i> - Restrinja as atualizações a uma faixa de horario. Por exemplo, <code>/horario 8 14</code> receberá mensagens apenas entre as 8h e as 13:59:59h. Para voltar ao padrao, use <code>/horario 0 24.</code>
-<b>/usuarios</b> - Número de usuários utilizando esse bot.  
-<b>/ajuda</b> - Exibe esta mensagem.
-`;
-    await bot.sendMessage(chatId, resultMsg, {parse_mode: 'HTML'});    
+    let resultMsg = strings.helpMsg;
+    await bot.sendMessage(chatId, resultMsg, { parse_mode: 'HTML' });
     addToLog({
         action: 'send message',
         chatId,
         message: resultMsg
-    })    
+    })
 })
 
 bot.onText(/\/usuarios/, async (msg, match) => {
     const chatId = msg.chat.id;
-
-    let resultMsg = `👩‍🦰 ${db.get('chats').value().length} usuarios 👨`;
-    await bot.sendMessage(chatId, resultMsg);    
+    const unreachable = db.get('chats').filter(i => i.wipe > 0).value().length;
+    const chatsLength = db.get('chats').value().length;
+    let resultMsg = strings.usersMsg(chatsLength, unreachable);
+    await bot.sendMessage(chatId, resultMsg);
     addToLog({
         action: 'send message',
         chatId,
         message: resultMsg
-    })    
+    })
+})
+
+const path = require('path');
+
+bot.onText(/\/adm_update_graphs/, async (msg, match) => {
+    addToLog({
+        action: 'Receive request adm_update_graphs',
+        msg
+    })
+    /* TODO: Abstract auth code */
+    const chatId = msg.chat.id;
+
+    if (!process.env.ADMIN_ID) {
+        bot.sendMessage(chatId, strings.noAdminConfigured, { parse_mode: 'HTML' })
+        addToLog({
+            action: 'No Admin Configured',
+            chatId
+        })
+        return;
+    }
+
+    const adminId = parseInt(process.env.ADMIN_ID);
+
+    if (chatId !== adminId) {
+        bot.sendMessage(chatId, strings.notAuthorized, { parse_mode: 'HTML' })
+        addToLog({
+            action: 'Not Authorized',
+            chatId
+        })
+        return;
+    }
+
+    /* Update the graph and map */
+    const lastUpdateTime = await (require('./graphs.js')());
+    db.set('graphsUpdateTime', lastUpdateTime).write();
+
+    let graphPath = path.join(__dirname, './graph.png');
+    const answer = await bot.sendPhoto(chatId, graphPath, {
+        caption: strings.graphCaption(db.get('graphsUpdateTime').value()),
+        parse_mode: 'HTML'
+    })
+    let graphFileId = answer.photo[0].file_id;
+    db.set('graphImageFileId', graphFileId).write();
+
+
+    console.log("RETURN ID", answer.photo[0].file_id)
+
+    let mapPath = path.join(__dirname, './map.png');
+    const answer2 = await bot.sendPhoto(chatId, mapPath, {
+        caption: strings.mapCaption(db.get('graphsUpdateTime').value()),
+        parse_mode: 'HTML'
+    })
+    let mapFileId = answer2.photo[0].file_id;
+    db.set('mapImageFileId', mapFileId).write();
+
+    bot.sendMessage(chatId, `graphFileId: ${graphFileId}\n mapFileId: ${mapFileId}`)
+
+})
+
+bot.onText(/\/adm_send_message/, async (msg, match) => {
+
+    addToLog({
+        action: 'Receive request adm_send_message',
+        msg
+    })
+
+    const chatId = msg.chat.id;
+
+    if (!process.env.ADMIN_ID) {
+        bot.sendMessage(chatId, strings.noAdminConfigured, { parse_mode: 'HTML' })
+        addToLog({
+            action: 'No Admin Configured',
+            chatId
+        })
+        return;
+    }
+
+    const adminId = parseInt(process.env.ADMIN_ID);
+
+    if (chatId !== adminId) {
+        bot.sendMessage(chatId, strings.notAuthorized, { parse_mode: 'HTML' })
+        addToLog({
+            action: 'Not Authorized',
+            chatId
+        })
+        return;
+    }
+
+    try {
+
+
+        const ask = await bot.sendMessage(chatId, 'Digite a mensagem a ser enviada. 45 min restantes.', {
+            reply_markup: {
+                force_reply: true
+            }
+        });
+
+        const listener = bot.onReplyToMessage(chatId, ask.message_id, async (result) => {
+            bot.removeReplyListener(listener)
+
+            const preview = await bot.sendMessage(chatId, result.text, {
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: 'Confirmar envio', callback_data: 'confirm_bulk_send' }
+                        ]
+                    ]
+                }
+            })
+
+            admBulkMessages[preview.message_id] = result.text;
+
+        })
+
+        setTimeout(() => {
+            bot.removeReplyListener(listener)
+        }, 1000 * 60 * 45) //45 minutes to auto-cancel.
+
+    } catch (e) {
+        addToLog({
+            action: 'Error',
+            error: e.toString()
+        })
+        return e.toString()
+    }
+})
+
+
+bot.on('callback_query', async (query) => {
+    addToLog({
+        action: 'Receive Callback Query',
+        query
+    })
+
+    if (query.data === 'confirm_bulk_send') {
+        if (!process.env.ADMIN_ID) {
+            bot.sendMessage(query.from.id, strings.noAdminConfigured, { parse_mode: 'HTML' })
+            return;
+        }
+        const adminId = parseInt(process.env.ADMIN_ID);
+
+        if (query.from.id !== adminId) {
+            bot.sendMessage(chatId, strings.notAuthorized, { parse_mode: 'HTML' })
+            return;
+        }
+
+        try {
+            const rawText = admBulkMessages[query.message.message_id];
+
+            /* Remove confirm button */
+            await bot.editMessageReplyMarkup({}, { chat_id: query.message.chat.id, message_id: query.message.message_id })
+
+            /* remove from admBulkMessages */
+            delete admBulkMessages[query.message.message_id];
+
+            /* Bulk code should go here */
+            const customMethod = async (cid) => {
+                try {
+
+                    await bot.sendMessage(cid, rawText, {
+                        parse_mode: 'HTML'
+                    })
+
+                    /* Record log */
+                    addToLog({
+                        action: 'send message',
+                        chatId: cid,
+                        message: rawText
+                    })
+
+                    return true;
+                } catch (e) {
+                    addToLog({
+                        action: 'failed to send message',
+                        error: e.toString(),
+                        chatId: cid,
+                        message: rawText
+                    })
+                    return e.toString();
+                }
+
+            }
+
+            sendUpdates(null, customMethod)
+
+        } catch (e) {
+            console.log('bot error', e)
+        } finally {
+            await bot.answerCallbackQuery(query.id)
+        }
+
+        /* TODO: Use switch */
+    }
+    else if ((query.data === 'change_table_deaths') || (query.data === 'change_table_cases')) {
+
+        const resolvedKeyboard = (query.data === 'change_table_cases') ? [
+            { text: 'Ver Menos', callback_data: 'cases_from_0' },
+            { text: '⚬ Casos ⚬', callback_data: 'do_nothing' },
+            { text: 'Óbitos', callback_data: 'change_table_deaths' }
+        ] : [
+                { text: 'Ver Menos', callback_data: 'deaths_from_0' },
+                { text: 'Casos', callback_data: 'change_table_cases' },
+                { text: '⚬ Óbitos ⚬', callback_data: 'do_nothing' }
+            ]
+
+        await bot.editMessageText(query.data === 'change_table_cases' ? getStateTableCases() : getStateTableDeaths(), {
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    resolvedKeyboard
+                ]
+            },
+            chat_id: query.message.chat.id, message_id: query.message.message_id
+        })
+
+        await bot.answerCallbackQuery(query.id)
+
+
+    }
+    else if (query.data.startsWith('cases_from')) {
+        /* TODO: Filter for malicious */
+        let startingIndex = Math.max(0, Math.min(parseInt(query.data.split('_')[2]), 23));
+        const resolvedKeyboard = [
+            { text: 'Ver Todos', callback_data: 'change_table_cases' },
+            startingIndex === 0 ? { text: '⚬', callback_data: 'do_nothing' } : { text: '⬆️', callback_data: 'cases_from_' + (startingIndex - 5) },
+            startingIndex === 23 ? { text: '⚬', callback_data: 'do_nothing' } : { text: '⬇️', callback_data: 'cases_from_' + (startingIndex + 5) },
+            { text: 'Óbitos', callback_data: 'deaths_from_0' }
+        ]
+        await bot.editMessageText(getStateTableCases(startingIndex, startingIndex + 4), {
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    resolvedKeyboard
+                ]
+            },
+            chat_id: query.message.chat.id, message_id: query.message.message_id
+        })
+        await bot.answerCallbackQuery(query.id)
+    }
+    else if (query.data.startsWith('deaths_from')) {
+        /* TODO: Filter for malicious */
+        let startingIndex = Math.max(0, Math.min(parseInt(query.data.split('_')[2]), 23));
+        const resolvedKeyboard = [
+            { text: 'Ver Todos', callback_data: 'change_table_deaths' },
+            startingIndex === 0 ? { text: '⚬', callback_data: 'do_nothing' } : { text: '⬆️', callback_data: 'deaths_from_' + (startingIndex - 5) },
+            startingIndex === 23 ? { text: '⚬', callback_data: 'do_nothing' } : { text: '⬇️', callback_data: 'deaths_from_' + (startingIndex + 5) },
+            { text: 'Casos', callback_data: 'cases_from_0' }
+        ]
+        await bot.editMessageText(getStateTableDeaths(startingIndex, startingIndex + 4), {
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    resolvedKeyboard
+                ]
+            },
+            chat_id: query.message.chat.id, message_id: query.message.message_id
+        })
+        await bot.answerCallbackQuery(query.id)
+    }
+    else if (query.data === 'change_map') {
+        await bot.editMessageMedia({
+            type: 'photo',
+            media: db.get('mapImageFileId').value(),
+            caption: strings.mapCaption(db.get('graphsUpdateTime').value()),
+            parse_mode: 'HTML'
+        }, {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {text: 'Gráfico', callback_data: 'change_graph'},
+                        {text: '⚬ Mapa ⚬', callback_data: 'do_nothing'}
+
+                    ]
+                ]
+            },
+            chat_id: query.message.chat.id, message_id: query.message.message_id
+        })
+        await bot.answerCallbackQuery(query.id)
+    }
+    else if (query.data === 'change_graph') {
+        await bot.editMessageMedia({
+            type: 'photo',
+            media: db.get('graphImageFileId').value(),
+            caption: strings.graphCaption(db.get('graphsUpdateTime').value()),
+            parse_mode: 'HTML'
+        }, {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {text: '⚬ Gráfico ⚬', callback_data: 'do_nothing'},
+                        {text: 'Mapa', callback_data: 'change_map'}
+
+                    ]
+                ]
+            },
+            chat_id: query.message.chat.id, message_id: query.message.message_id
+        })
+        await bot.answerCallbackQuery(query.id)
+    }    
+    else if (query.data === 'do_nothing') {
+        await bot.answerCallbackQuery(query.id)
+    }
+
+})
+
+
+bot.onText(/\/add_canal (.+)/, async (msg, match) => {
+
+    const chatId = msg.chat.id;
+    const channel = (match[1][0] === '@') ? match[1] : `@` + match[1];
+
+    bot.sendMessage(chatId, strings.addChannelAttempt({ channel }), { parse_mode: 'HTML' })
+
+    try {
+
+        if (db.get('chats').find({ id: channel }).value()) {
+            bot.sendMessage(chatId, strings.channelAlreadySubscribed({ channel }), { parse_mode: 'HTML' });
+            return;
+        }
+
+        await bot.sendMessage(channel, strings.activateChannel({ channel }), { parse_mode: 'HTML' })
+
+        db.get('chats').push({
+            id: channel,
+            lastValue: lastMSCasesCount,
+            lastUnofficial: lastSheetsCasesCount,
+            lastSent: new Date().toString(),
+            wipe: 0
+        }).write()
+
+        await sendCurrentCount(true)(channel);
+
+        await bot.sendMessage(chatId, strings.channelSubscribed({ channel }), { parse_mode: 'HTML' })
+
+    } catch (e) {
+        bot.sendMessage(chatId, channelConnectError({ channel }), { parse_mode: 'HTML' })
+    }
+
+})
+
+
+bot.onText(/\/debug/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const os = require('os');
+
+    const resultMsg = `<pre><code class="language-javascript">` + JSON.stringify({
+        memory: process.memoryUsage(),
+        osMemory: {
+            freemem: os.freemem(),
+            totalmem: os.totalmem()
+        },
+        ...lastDebug,
+        lastSheetsCasesCount,
+        lastSheetsUpdate,
+        uptime: require('perf_hooks').performance.now()
+    }, null, 2) + `</code></pre>`;
+
+    await bot.sendMessage(chatId, resultMsg, { parse_mode: 'HTML' })
+    addToLog({
+        action: 'send message',
+        chatId,
+        message: resultMsg
+    })
+})
+
+bot.onText(/\/faq/, async (msg, match) => {
+    const chatId = msg.chat.id;
+
+    const resultMsg = strings.faq;
+
+    await bot.sendMessage(chatId, resultMsg, { parse_mode: 'HTML' })
+    addToLog({
+        action: 'send message',
+        chatId,
+        message: resultMsg
+    })
+})
+
+bot.onText(/\/graficos/, async (msg, match) => {
+    const chatId = msg.chat.id;
+
+    addToLog({
+        action: 'Request graphs',
+        chatId
+    })
+
+    bot.sendPhoto(chatId, db.get('graphImageFileId').value(), {
+        caption: strings.graphCaption(db.get('graphsUpdateTime').value()),
+        parse_mode: 'HTML',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    {text: '⚬ Gráfico ⚬', callback_data: 'do_nothing'},
+                    {text: 'Mapa', callback_data: 'change_map'}
+                ]
+            ]
+        }
+    })
 })
 
 bot.onText(/\/horario (\d{1,2}) (\d{1,2})/, async (msg, match) => {
 
     const chatId = msg.chat.id;
 
-    if (db.get('chats').find({id: chatId}).value() === undefined) {
+    if (db.get('chats').find({ id: chatId }).value() === undefined) {
         let msg = `Voce precisa estar inscrito para usar este comando.`
         await bot.sendMessage(chatId, msg);
         addToLog({
             action: 'send message',
             chatId,
             message: msg
-        })        
+        })
         return;
     }
-    
+
 
     let timeStart = match[1], timeEnd = match[2];
-    
+
     try {
         timeStart = parseInt(timeStart);
         timeEnd = parseInt(timeEnd);
@@ -404,8 +1043,8 @@ bot.onText(/\/horario (\d{1,2}) (\d{1,2})/, async (msg, match) => {
         addToLog({
             action: 'send message',
             chatId,
-            message: iMsg 
-        })           
+            message: iMsg
+        })
         return;
     }
 
@@ -415,8 +1054,8 @@ bot.onText(/\/horario (\d{1,2}) (\d{1,2})/, async (msg, match) => {
         addToLog({
             action: 'send message',
             chatId,
-            message: iMsg 
-        })                   
+            message: iMsg
+        })
         return;
     }
 
@@ -426,8 +1065,8 @@ bot.onText(/\/horario (\d{1,2}) (\d{1,2})/, async (msg, match) => {
         addToLog({
             action: 'send message',
             chatId,
-            message: iMsg 
-        })             
+            message: iMsg
+        })
         return;
     }
 
@@ -437,8 +1076,8 @@ bot.onText(/\/horario (\d{1,2}) (\d{1,2})/, async (msg, match) => {
         addToLog({
             action: 'send message',
             chatId,
-            message: iMsg 
-        })             
+            message: iMsg
+        })
         return;
     }
 
@@ -452,22 +1091,22 @@ bot.onText(/\/horario (\d{1,2}) (\d{1,2})/, async (msg, match) => {
             action: 'send message',
             chatId,
             rmvMessage
-        })        
+        })
 
-        db.get('chats').find({id: chatId}).unset('startHour').value();
-        db.get('chats').find({id: chatId}).unset('endHour').value();
+        db.get('chats').find({ id: chatId }).unset('startHour').value();
+        db.get('chats').find({ id: chatId }).unset('endHour').value();
         addToLog({
             action: 'Remove startHour and endHour from chatId',
             chatId
         })
-        await sendCurrentCount(chatId);
+        await sendCurrentCount(true)(chatId);
 
         return;
     }
 
     /* Only one option left */
 
-    let addMessage = `Adicionando Horario Restrito para notificacoes: ${timeStart}h-${timeEnd}h`;
+    let addMessage = `Adicionando Horario Restrito para notificações: ${timeStart}h-${timeEnd}h`;
 
     await bot.sendMessage(chatId, addMessage);
     addToLog({
@@ -476,51 +1115,178 @@ bot.onText(/\/horario (\d{1,2}) (\d{1,2})/, async (msg, match) => {
         message: addMessage
     })
 
-    db.get('chats').find({id: chatId}).set('startHour', timeStart).value();
-    db.get('chats').find({id: chatId}).set('endHour', timeEnd).value();
+    db.get('chats').find({ id: chatId }).set('startHour', timeStart).value();
+    db.get('chats').find({ id: chatId }).set('endHour', timeEnd).value();
     addToLog({
         action: 'Add startHour and endHour from chatId',
         chatId,
         startHour: timeStart,
         endHour: timeEnd
-    })    
-    await sendCurrentCount(chatId);
+    })
+    await sendCurrentCount(true)(chatId);
+})
 
+const getStateTableCases = (from = 0, to = 27) => {
+    let resultSheets = new AsciiTable().fromJSON({
+        heading: ['Estado', 'Casos'],
+        rows: lastSheetsStateInfo.filter((a, i) => (i >= from) && (i <= to)).map(s => [s.state, s.cases])
+    }).setAlignRight(1).setAlignRight(2).toString()
+
+    let finalMsg = strings.stateCases({ resultSheets, lastSheetsUpdate })
+
+    return finalMsg;
+}
+
+bot.onText(/^\/estados$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    let finalMsg = getStateTableCases(0, 4);
+    await bot.sendMessage(chatId, finalMsg, {
+        parse_mode: 'HTML',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: 'Ver Todos', callback_data: 'change_table_cases' },
+                    { text: '⚬', callback_data: 'do_nothing' },
+                    { text: '⬇️', callback_data: 'cases_from_5' },
+                    { text: 'Óbitos', callback_data: 'deaths_from_0' }
+                ]
+            ]
+        }
+    })
+
+    addToLog({
+        action: 'send message',
+        chatId,
+        message: finalMsg
+    })
 
 })
 
+bot.onText(/\/estados_casos/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    let finalMsg = getStateTableCases();
+    await bot.sendMessage(chatId, finalMsg, {
+        parse_mode: 'HTML',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: 'Ver Menos', callback_data: 'cases_from_0' },
+                    { text: '⚬ Casos ⚬', callback_data: 'do_nothing' },
+                    { text: 'Óbitos', callback_data: 'change_table_deaths' }
+                ]
+            ]
+        }
+    })
 
-const sendCurrentCount = async (chatId) => {
-    const iValue = db.get('chats').find({id: chatId}).value().interval;
-    const iStartHour = db.get('chats').find({id: chatId}).value().startHour;
-    const iEndHour = db.get('chats').find({id: chatId}).value().endHour;
-    const message = `- Casos no <b>Brasil:</b> 🇧🇷
-    - Ministério da Saúde (oficial): <b>${lastValue}</b>
-    - Secretarias e Municípios: <b>${lastUnofficialValue}</b>
-` + (
-(lastDeathsValue > 0) ? `
-- Óbitos:
-    - Ministério da Saúde (oficial): <b>${lastDeathsValue}</b>
-` : ``   
-) + `
-* Ministério da Saúde: ${lastMSUpdate}
-` +
-`
-* Secretarias e Municípios: Dados Atualizados em ${lastUnofficialUpdate}
-` +
-(iValue ? `
-🔄 Freq. mínima de notificação: ${iValue} minutos.
-` : `
-🔄 Freq. mínima de notificação: instantânea.
-`) + (iStartHour ? `
-⏰ Notificações restritas ao período ${iStartHour}h-${iEndHour}.
-`: `
-⏰ Notificações irrestritas (0h-24h).
-`)
+    addToLog({
+        action: 'send message',
+        chatId,
+        message: finalMsg
+    })
 
-    const options = {'parse_mode': 'HTML'}
+})
+
+const getStateTableDeaths = (from = 0, to = 27) => {
+    let result = new AsciiTable().fromJSON({
+        heading: ['Estado', 'Óbitos'],
+        rows: lastWCotaStateInfo.filter((a, i) => (i >= from) && (i <= to)).map(s => [s.state, s.deaths])
+    }).setAlignRight(1).setAlignRight(2).toString()
+    return strings.stateDeaths({ result, lastWCotaUpdateTime });
+}
+
+bot.onText(/\/estados_obitos/, async (msg, match) => {
+    const chatId = msg.chat.id;
+
+    let finalMsg = getStateTableDeaths();
+
+    await bot.sendMessage(chatId, finalMsg, {
+        parse_mode: 'HTML',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: 'Ver Menos', callback_data: 'deaths_from_0' },
+                    { text: 'Casos', callback_data: 'change_table_cases' },
+                    { text: '⚬ Óbitos ⚬', callback_data: 'do_nothing' }
+                ]
+            ]
+        }
+    })
+
+    addToLog({
+        action: 'send message',
+        chatId,
+        message: finalMsg
+    })
+
+})
+
+/* TODO: Multiline text */
+bot.onText(/\/contato (.*)/, async (msg, match) => {
+
+    const chatId = msg.chat.id;
+
+    let action = { from: chatId, message: match[1], time: (new Date()).toString() };
+    fs.appendFileSync('contato.log', JSON.stringify(action) + `\n`);
+
+    addToLog({
+        action: 'create feedback',
+        chatId,
+        message: match[1]
+    })
+
+    await bot.sendMessage(chatId, strings.contactThankYou);
+
+})
+
+const chatNumbersAreSame = (chatId) => {
+    let values = db.get('chats').find({ id: chatId }).value();
+
+    return ((values.lastValue === lastMSCasesCount) &&
+        (values.lastMSDeaths === lastMSDeathsValue) &&
+        (values.lastUnofficial === lastSheetsCasesCount))
+    /* && (values.lastUnofficialDeaths === lastWCotaDeathsCount) */
+}
+
+
+const sendCurrentCount = (force = false) => async (chatId) => {
+
+
+    if (chatNumbersAreSame(chatId) && (force === false)) {
+        console.log('skipping because same value')
+        return 'skip';
+    }
+
+    const chat = db.get('chats').find({ id: chatId }).value();
+
+    const iValue = chat.interval;
+    const iStartHour = chat.startHour;
+    const iEndHour = chat.endHour;
+    const userUnofficialCases = chat.lastUnofficial;
+    const userMSCases = chat.lastValue;
+    const userMSDeaths = chat.lastMSDeaths;
+    const userSuspects = chat.lastSuspects;
+    const userRecovered = chat.lastRecovered;
+
+    const message = strings.startCount({
+        lastSheetsCasesCount,
+        lastSheetsUpdate,
+        lastSheetsTotalSuspects,
+        lastSheetsTotalRecovered,
+        lastMSCasesCount,
+        lastMSDeathsValue,
+        lastMSUpdate,
+        iValue,
+        iStartHour,
+        iEndHour,
+        userUnofficialCases,
+        userMSCases,
+        userMSDeaths,
+        userSuspects,
+        userRecovered
+    })
+
+    const options = { 'parse_mode': 'HTML' }
     try {
-        // console.log('"debug send"', chatId, message)
         await bot.sendMessage(chatId, message, options);
         addToLog({
             action: 'send message',
@@ -528,26 +1294,32 @@ const sendCurrentCount = async (chatId) => {
             options,
             chatId
         })
-        db.get('chats').find({id: chatId}).assign({
-            lastValue,
-            lastUnofficial: lastUnofficialValue,
-            lastSent: new Date().toUTCString()
+        db.get('chats').find({ id: chatId }).assign({
+            lastValue: lastMSCasesCount,
+            lastMSDeaths: lastMSDeathsValue,
+            lastUnofficial: lastSheetsCasesCount,
+            lastSuspects: lastSheetsTotalSuspects,
+            lastRecovered: lastSheetsTotalRecovered,
+            /* TODO: Reinsert once available */
+            // lastUnofficialDeaths: lastWCotaDeathsCount,
+            lastSent: new Date().toUTCString(),
+            wipe: 0
         }).write()
+        return true;
 
-    } catch(e) {
+    } catch (e) {
         addToLog({
             action: 'failed to send message',
             error: e.toString(),
             chatId,
             message
         })
+        if ((e.toString().indexOf('ETELEGRAM: 403') !== -1) || (e.toString().indexOf('ETELEGRAM: 400') !== -1)) {
+            db.get('chats').find({ id: chatId }).assign({
+                wipe: (db.get('chats').find({ id: chatId }).value().wipe) + 1
+            }).write()
+        }
+
+        return e.toString();
     }
-}
-
-
-
-function getRandomInt(min, max) {
-    min = Math.ceil(min);
-    max = Math.floor(max);
-    return Math.floor(Math.random() * (max - min + 1)) + min;
 }
