@@ -34,7 +34,7 @@ const pollUnofficial = () => {
                     totalCases: parseInt(r.totalCases),
                     deaths: parseInt(r.deaths)
                 }
-            }).sort((a, b) => (a.totalCases > b.totalCases) ? -1 : 1);
+            }).sort((a, b) => (a.deaths > b.deaths) ? -1 : 1);
             resolve({newValue: totalUnofficial, deaths, onlyCases: totalUnofficial - deaths, date: rDate, stateInfo});
         })    
     })
