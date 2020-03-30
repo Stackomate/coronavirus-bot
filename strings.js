@@ -142,7 +142,7 @@ Contagem no <b>Brasil:</b> 🇧🇷
 
 <b>- Ministério da Saúde (oficial):</b> 
     - Casos: <b>${lastMSCasesCount}</b>${userMSCases !== lastMSCasesCount ? ` ❗(${lastMSCasesCount - userMSCases} novos)`: ``}
-    - Óbitos: <b>${lastMSDeathsValue}</b>${(userMSDeaths < lastMSDeathsValue) ? ` ❗(${lastMSDeathsValue - userMSDeaths} novos) 😔`: ``}
+    - Óbitos: <b>${lastMSDeathsValue}</b>${(parseInt(userMSDeaths) < parseInt(lastMSDeathsValue)) ? ` ❗(${lastMSDeathsValue - userMSDeaths} novos) 😔`: ``}
 
 <b>- Estados:</b>  /estados   
     - Casos: /estados_casos

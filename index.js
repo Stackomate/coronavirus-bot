@@ -172,12 +172,12 @@ const updateMS = async function () {
         };
         /* TODO: Use transaction here */
         addToLog(item);
-        // db.set('count', newValue).write();
-        // lastMSCasesCount = newValue;
-        // db.set('deaths', newDeaths).write();
-        // lastMSDeathsValue = newDeaths;
-        // db.set('MSUpdate', newMS).write()
-        // lastMSUpdate = newMS;
+        db.set('count', newValue).write();
+        lastMSCasesCount = newValue;
+        db.set('deaths', newDeaths).write();
+        lastMSDeathsValue = newDeaths;
+        db.set('MSUpdate', newMS).write()
+        lastMSUpdate = newMS;
         await driver.quit();
         return newValue;
     } catch (e) {
@@ -281,7 +281,7 @@ const sendUpdates = async (replacement, customMethod) => {
     let errors = new Set();
 
     /** Target number of requests per second */
-    let requestsPerSecond = 25;
+    let requestsPerSecond = 27;
     let successRequests = 0;
     let erroredRequests = 0;
 
