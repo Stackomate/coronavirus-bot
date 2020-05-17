@@ -828,7 +828,7 @@ bot.onText(/\/usuarios/, async (msg, match) => {
     const peopleLength = db.get('chats').filter(i => i.id > 0).value().length;
     const channelsLength = db.get('chats').filter(i => ('' + i.id).startsWith('@')).value().length;
     let membersCount = 0;
-    let maxCount = db.get('chats').filter(i => i.membersCount > 0).maxBy('membersCount').value().membersCount;
+    let maxCount = db.get('chats').filter(i => i.membersCount > 0).value().length > 1 ? db.get('chats').filter(i => i.membersCount > 0).maxBy('membersCount').value().membersCount : 0;
     db.get('chats').filter(i => i.membersCount > 0).forEach(i =>  {
         membersCount = membersCount + i.membersCount
     }).value();

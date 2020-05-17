@@ -16,6 +16,10 @@ Check it out at http://t.me/CoronavirusBRBot
 **NOTE:** You must first create a bot in Telegram. Check this guide and repeat steps from 1 to 4: 
 https://www.sohamkamani.com/blog/2016/09/21/making-a-telegram-bot/
 
+**NOTE:** You must have git installed to run this project (Well, you probably already have it anyways).
+
+**NOTE:** You must create a Google Drive API to get the sheets contents. For more information, check: https://developers.google.com/drive/api/v3/enable-drive-api
+
 Please store the token safely for later use!
 
 1. ```git clone https://github.com/Stackomate/coronavirus-bot```
@@ -26,7 +30,7 @@ Place the downloaded file (`chromedriver`) inside root project folder.
 5. Create a `.env` file as following:
 ```
 BOT_TOKEN = 'my-secret-token-here'
-ADMIN_ID = [Your Telegram Chat Id here]
+ADMIN_ID = [Your Telegram Chat Id here as a number, without the brackets. E.g.: 12345678]
 SHEETS_FILE_ID = '1MWQE3s4ef6dxJosyqvsFaV4fDyElxnBUB6gMGvs3rEc'
 SHEETS_FILE_PATH = './sheets.csv'
 WCOTA_REPO_URL = 'https://github.com/wcota/covid19br'
@@ -34,3 +38,4 @@ WCOTA_REPO_PATH = 'unofficial-data'
 ```
 6. Run ```node index.js```
 
+**Important:** During the first run, Google drive API will provide instructions in your console to create the credentials. They're required to fetch the values from Google Sheets.
