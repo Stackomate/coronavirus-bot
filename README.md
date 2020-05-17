@@ -18,7 +18,8 @@ https://www.sohamkamani.com/blog/2016/09/21/making-a-telegram-bot/
 
 **NOTE:** You must have git installed to run this project (Well, you probably already have it anyways).
 
-**NOTE:** You must create a Google Drive API to get the sheets contents. For more information, check: https://developers.google.com/drive/api/v3/enable-drive-api
+**NOTE:** You must create a Google Drive API to get the sheets contents. For more information, check: https://developers.google.com/drive/api/v3/enable-drive-api.
+Follow step 1 from https://developers.google.com/drive/api/v3/quickstart/nodejs. Copy the credentials.json file into the root of this project.
 
 Please store the token safely for later use!
 
