@@ -30,7 +30,7 @@ Place the downloaded file (`chromedriver`) inside root project folder.
 5. Create a `.env` file as following:
 ```
 BOT_TOKEN = 'my-secret-token-here'
-ADMIN_ID = [Your Telegram Chat Id here]
+ADMIN_ID = [Your Telegram Chat Id here as a number, without the brackets. E.g.: 12345678]
 SHEETS_FILE_ID = '1MWQE3s4ef6dxJosyqvsFaV4fDyElxnBUB6gMGvs3rEc'
 SHEETS_FILE_PATH = './sheets.csv'
 WCOTA_REPO_URL = 'https://github.com/wcota/covid19br'
