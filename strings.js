@@ -33,6 +33,14 @@ const helpMsg = `
 
 <b>/estados_obitos</b> - Exibe a contagem de óbitos para cada estado.
 
+<b>/estados</b> - Tabela interativa resumida para os estados.
+
+<b>/graficos</b> - Exibe gráficos relacionados a contagem de casos.
+
+<b>/leitos_insumos</b> - Exibe informações relacionadas a contagem de leitos e insumos estratégicos para o governo.
+
+<b>/faq</b> - Exibe perguntas frequentes, especialmente sobre as fontes consultadas.
+
 <b>/contato</b> <i>[mensagem com varias palavras]</i>  - Envia uma mensagem privada para a equipe do Bot e Contagem. Use para deixar opiniões, sugestões e críticas.
 
 <b>/add_canal</b> <i>[nome-do-canal]</i> - ⚠ <b>(Experimental)</b> Configura o Bot para canais do Telegram. Obs: Lembre-se de adicioná-lo como admin do canal.
@@ -42,13 +50,21 @@ const helpMsg = `
 <b>/ajuda</b> - Exibe esta mensagem.
 `
 
-const usersMsg = (total, unreachable) => `
+const usersMsg = (total, unreachable, {channels, people, groups, membersCount, maxCount}) => `
 👩‍🦰 ${total} usuários 👨
 ` + (unreachable > 0 ? `
 - ⚠ Usuários inalcançáveis: ${unreachable}.
 
 * Inalcançáveis incluem usuários (ou grupos) que bloquearam o Bot. Serão excluídos após 2 tentativas de notificação.
 ` : ``)
++
+`
+- Pessoas: ${people}
+- Grupos: ${groups}
+- Canais: ${channels}
+
+- Indiretos: ${membersCount}
+- Grupo/Canal mais popular: ${maxCount}`
 
 const faq = `
 <b> Como é feita a contagem? </b>
@@ -60,6 +76,10 @@ O governo costuma atualizar os casos e óbitos 1 vez por dia.
 Por essa razão, é atualizada com mais frequencia. Pode conter duplicidade de casos ou ausência deles. Dados de óbitos não são estimativas, mas sim obtidos pela plataforma oficial. 
 
 Agradecimentos a https://twitter.com/CoronavirusBra1, https://twitter.com/wlcota, e https://twitter.com/PokeCorona pelo esforço em manter a contagem atualizada.
+
+<b>* Worldometers:</b> Site internacional que realiza a coleta de dados relacionados ao COVID-19: https://www.worldometers.info/coronavirus/
+
+<b>* Cartórios:</b> Site da Associação Nacional dos Registradores de Pessoas Naturais (Arpen-Brasil). https://transparencia.registrocivil.org.br/especial-covid
 `;
 
 const noAdminConfigured = `
@@ -109,6 +129,16 @@ ${resultSheets}
 Para mais informações, digite /faq
 `
 
+const stateSuspects = ({resultSheets, lastSheetsUpdate}) => `
+<b> Suspeitos nos Estados: </b>
+<pre>
+${resultSheets}
+</pre>
+* Dados atualizados em ${lastSheetsUpdate}
+
+Para mais informações, digite /faq
+`
+
 const stateDeaths = ({result, lastWCotaUpdateTime}) => `
 <b> Óbitos nos Estados: </b>
 <pre>
@@ -132,52 +162,116 @@ const startCount = ({
     lastSheetsCasesCount, lastSheetsUpdate, lastMSCasesCount, lastMSDeathsValue, lastMSUpdate, 
     iValue, iStartHour, iEndHour, userUnofficialCases, userMSCases, userMSDeaths,
     lastSheetsTotalSuspects, lastSheetsTotalRecovered,
-    userSuspects, userRecovered
+    userSuspects, userRecovered,
+    lastWMCount, lastWMDeaths, lastWMRecovered, lastWMUpdate,
+    userWMCount, userWMDeaths, userWMRecovered, detailed = true,
+    lastRegistryDeaths, lastSheetsTotalDeaths, lastSheetsTotalTests, lastMSRecovered,
+    userSheetsDeaths, userSheetsTests, userRegistryDeaths
 }) => `
-Contagem no <b>Brasil:</b> 🇧🇷
+Contagem no <b>Brasil:</b> 🇧🇷 (/faq)
 
-<b>- Secretarias e Municípios:</b>
-    - Casos: <b>${lastSheetsCasesCount}</b>${userUnofficialCases !== lastSheetsCasesCount ? ` ❗(${lastSheetsCasesCount - userUnofficialCases} novos)`: ``}
-    - Suspeitos: <b>${lastSheetsTotalSuspects}</b>
+▪ Secretarias e Municípios:
+    - Casos: <b>${formatNumber(lastSheetsCasesCount)}</b>${userUnofficialCases < lastSheetsCasesCount ? ` ❗(${formatNumber(lastSheetsCasesCount - userUnofficialCases)} novos)`: ``}
+    - Óbitos: <b>${formatNumber(lastSheetsTotalDeaths)}</b>${((userSheetsDeaths !== null) && (userSheetsDeaths < lastSheetsTotalDeaths)) ? ` ❗(${formatNumber(lastSheetsTotalDeaths - userSheetsDeaths)} novos) 😔`: ``}
+    - Suspeitos: <b>${formatNumber(lastSheetsTotalSuspects)}</b>${userSuspects !== lastSheetsTotalSuspects ? ` ❗(${formatNumber(lastSheetsTotalSuspects - userSuspects)} novos)`: ``}
+    - Recuperados: <b>${formatNumber(lastSheetsTotalRecovered)}</b>${(userRecovered < lastSheetsTotalRecovered) ? ` ❗(${formatNumber(lastSheetsTotalRecovered - userRecovered)} novos) 🎉`: ``}
+    - Testes: <b>${formatNumber(lastSheetsTotalTests)}</b>${((typeof userSheetsTests === 'number') && (userSheetsTests !== lastSheetsTotalTests)) ? ` ❗(${formatNumber(lastSheetsTotalTests - userSheetsTests)} novos)`: ``}
 
-<b>- Ministério da Saúde (oficial):</b> 
-    - Casos: <b>${lastMSCasesCount}</b>${userMSCases !== lastMSCasesCount ? ` ❗(${lastMSCasesCount - userMSCases} novos)`: ``}
-    - Óbitos: <b>${lastMSDeathsValue}</b>${(parseInt(userMSDeaths) < parseInt(lastMSDeathsValue)) ? ` ❗(${lastMSDeathsValue - userMSDeaths} novos) 😔`: ``}
+▫ Ministério da Saúde (oficial):
+    - Casos: <b>${formatNumber(parseInt(lastMSCasesCount, 10))}</b>${userMSCases !== lastMSCasesCount ? ` ❗(${formatNumber(lastMSCasesCount - userMSCases)} novos)`: ``}
+    - Óbitos: <b>${formatNumber(parseInt(lastMSDeathsValue, 10))}</b>${(parseInt(userMSDeaths) < parseInt(lastMSDeathsValue)) ? ` ❗(${formatNumber(lastMSDeathsValue - userMSDeaths)} novos) 😔`: ``}
+    - Recuperados: <b>${formatNumber(lastMSRecovered)}</b>
 
-<b>- Estados:</b>  /estados   
-    - Casos: /estados_casos
-    - Óbitos: /estados_obitos    
+🔅 Worldometers:
+    - Casos: <b>${formatNumber(lastWMCount)}</b>${(userWMCount < lastWMCount) ? ` ❗(${formatNumber(lastWMCount - userWMCount)} novos)`: ``}
+    - Óbitos: <b>${formatNumber(lastWMDeaths)}</b>${(userWMDeaths < lastWMDeaths) ? ` ❗(${formatNumber(lastWMDeaths - userWMDeaths)} novos) 😔`: ``}
+    - Recuperados: <b>${formatNumber(lastWMRecovered)}</b>${(userWMRecovered < lastWMRecovered) ? ` ❗(${formatNumber(lastWMRecovered - userWMRecovered)} novos) 🎉`: ``}   
 
-<b>- Gráficos:</b>  /graficos    
+▪ Cartórios:
+    - Óbitos: <b>${formatNumber(lastRegistryDeaths)}</b> ${((userRegistryDeaths !== null) && (userRegistryDeaths < lastRegistryDeaths)) ? `❗ `: ``}(${((userRegistryDeaths !== null) && (userRegistryDeaths < lastRegistryDeaths)) ? `${lastRegistryDeaths - userRegistryDeaths} novos, `: ``}Inclui suspeitos) ${((userRegistryDeaths !== null) && (userRegistryDeaths < lastRegistryDeaths)) ? `😔`: ``}
 `
-+
-`
-* S&M: Dados atualizados em ${lastSheetsUpdate}
-* MS: ${lastMSUpdate} 
-* Para detalhes, use /faq
-
-`        
++ `
+`       
 + 
-(iValue ? `
-🔄 Freq. mínima de notificação: ${iValue} minutos.` : `🔄 Freq. mínima de notificação: instantânea.`) + (iStartHour ? `
-⏰ Notificações restritas ao período ${iStartHour}h-${iEndHour}.
-`: `
-⏰ Notificações irrestritas (0h-24h).
-`)
+(iValue ? `🔄 ${iValue} min. ` : `🔄 (0 min). `) + (iStartHour ? `⏰ ${iStartHour}h-${iEndHour}
+`: `⏰ (0h-24h)`)
 
 const graphCaption = (time) => `<b>Gráfico de Casos no Brasil</b>
 
 * Imagem capturada em ${time}. Veja o gráfico interativo na fonte.
 
 <b>- Créditos: </b> Wesley Cota
-<b>- Fonte:</b> https://labs.wesleycota.com/sarscov2/br/`;
+<b>- Fonte:</b> https://covid19br.wcota.me/`;
+
+const sdGraphCaption = (time) => `<b>Gráfico de Isolamento Social no Brasil</b>
+
+* Imagem capturada em ${time}. Veja o gráfico interativo na fonte.
+
+<b>- Créditos: </b> In Loco
+<b>- Fonte:</b> https://mapabrasileirodacovid.inloco.com.br/pt/`;
+
+const sdRankingCaption = (time) => `<b>Ranking de Isolamento Social no Brasil</b>
+
+* Imagem capturada em ${time}. Veja o gráfico interativo na fonte.
+
+<b>- Créditos: </b> In Loco
+<b>- Fonte:</b> https://mapabrasileirodacovid.inloco.com.br/pt/`;
 
 const mapCaption = (time) => `<b>Mapa de Casos no Brasil</b>
 
 * Imagem capturada em ${time}. Veja o mapa interativo na fonte.
 
 <b>- Créditos: </b> Wesley Cota
-<b>- Fonte:</b> https://labs.wesleycota.com/sarscov2/br/`;
+<b>- Fonte:</b> https://covid19br.wcota.me/`;
+
+const round = (num) => Math.round((num + Number.EPSILON) * 100) / 100
+
+/** Format according to Brazilian standards */
+const formatNumber = n => n.toLocaleString('pt-br');
+
+const bedsAndSupplies = ({
+    distributedVaccines,
+    usedVaccines,
+    surgeryMasks,
+    n95Masks,
+    alcohol,
+    apron,
+    quickTestKits,
+    gloves,
+    protectiveGlasses,
+    sneakersAndCaps,
+    tempBeds,
+    icuBeds      
+}) => {
+    return `<b>Leitos e Insumos</b>
+
+- Leitos Totais: <b>${formatNumber(tempBeds + icuBeds)}</b>
+    - UTI Adulto: ${formatNumber(icuBeds)}
+    - Temporários: ${formatNumber(tempBeds)}
+
+- Kit Teste Rápido: <b>${formatNumber(quickTestKits)}</b>
+
+- Vacinas contra a Gripe:
+    - Aplicadas: ${formatNumber(usedVaccines)} <b>(${formatNumber(round(usedVaccines/distributedVaccines * 100))}%)</b>
+    - Distribuídas: ${formatNumber(distributedVaccines)}
+
+- Máscaras:
+    - Cirúrgicas: <b>${formatNumber(surgeryMasks)}</b>
+    - N95: <b>${formatNumber(n95Masks)}</b>
+
+- Álcool 100/500ml: <b>${formatNumber(alcohol)}</b>
+
+- Avental: <b>${formatNumber(apron)}</b>
+
+- Luvas: <b>${formatNumber(gloves)}</b>
+
+- Óculos de Proteção: <b>${formatNumber(protectiveGlasses)}</b>
+
+- Sapatilha e Touca: <b>${formatNumber(sneakersAndCaps)}</b>
+
+Para detalhes por estado, veja a fonte (site oficial do Ministério da Saúde).
+`
+}
 
 module.exports = {
     startMsg,
@@ -193,8 +287,12 @@ module.exports = {
     channelSubscribed,
     stateCases,
     stateDeaths,
+    stateSuspects,
     contactThankYou,
     startCount,
     graphCaption,
-    mapCaption
+    mapCaption,
+    bedsAndSupplies,
+    sdGraphCaption,
+    sdRankingCaption
 }
