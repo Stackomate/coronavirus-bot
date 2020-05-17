@@ -25,11 +25,11 @@ db.defaults({
     unofficialStateInfo: -1,
     unofficialDeaths: -1,
     deaths: '0',
-    MSUpdate: '',
+    MSUpdate: new Date().toString(),
     MSRecovered: -1,
     unofficialUpdate: '',
     sheetsCount: -1,
-    sheetsUpdate: '',
+    sheetsUpdate: new Date().toString(),
     sheetsStateInfo: -1,
     sheetsStateSuspects: -1,
     sheetsStateRecovered: -1,
@@ -43,7 +43,7 @@ db.defaults({
     WMCount: -1,
     WMDeaths: -1,
     WMRecovered: -1,
-    WMUpdate: -1,
+    WMUpdate: new Date().toString(),
     beds_supplies: {},
     socialDistancing: {
         graph: null,
@@ -51,7 +51,7 @@ db.defaults({
     },
     registry: {
         deaths: -1,
-        update: -1
+        update: new Date().toString()
     }
 }).write()
 
