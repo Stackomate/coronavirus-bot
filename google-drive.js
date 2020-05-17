@@ -135,6 +135,9 @@ function downloadFile(resolve, reject) {
 
       let totalRecovered = null;
       let stateRecovered = [];
+
+      let totalDeaths = null;
+      let totalTests = null;
       
       require('fs').createReadStream(
         require('path').relative(__dirname, sheetsFilePath)
@@ -145,12 +148,15 @@ function downloadFile(resolve, reject) {
       }).on('end', () => {
         stateInfo = results.slice(3, 31).map(i => ({ state: i[1], cases: i[2] }));
         totalCount = results[3]['2'];
+        totalDeaths = results[3]['5'];
+        totalTests = results[3]['6'];
 
         stateSuspects = results.slice(35, 63).map(i => ({ state: i[1], suspects: i[3] }));
         totalSuspects = results[35]['3'];
 
         stateRecovered = results.slice(67, 95).map(i => ({ state: i[1], recovered: i[4] }))
         totalRecovered = results[67]['4'];
+
 
         resolve({ 
           totalCount: parseInt(totalCount), 
@@ -159,6 +165,8 @@ function downloadFile(resolve, reject) {
           stateInfo, 
           totalRecovered: parseInt(totalRecovered),
           stateRecovered,
+          totalDeaths: parseInt(totalDeaths),
+          totalTests: parseInt(totalTests),
           date: new Date(time).toLocaleString("pt-BR") 
         });
       })

@@ -22,9 +22,15 @@ Please store the token safely for later use!
 2. ```cd coronavirus-bot && npm ci```
 3. Download https://chromedriver.storage.googleapis.com/index.html?path=80.0.3987.106/ for your specific operating system.
 Place the downloaded file (`chromedriver`) inside root project folder.
-4. Create a `.env` file as following:
+4. Find your telegram Chat Id number. Send `/my_id` to https://t.me/get_id_bot
+5. Create a `.env` file as following:
 ```
 BOT_TOKEN = 'my-secret-token-here'
+ADMIN_ID = [Your Telegram Chat Id here]
+SHEETS_FILE_ID = '1MWQE3s4ef6dxJosyqvsFaV4fDyElxnBUB6gMGvs3rEc'
+SHEETS_FILE_PATH = './sheets.csv'
+WCOTA_REPO_URL = 'https://github.com/wcota/covid19br'
+WCOTA_REPO_PATH = 'unofficial-data'
 ```
-5. Run ```node index.js```
+6. Run ```node index.js```
 
