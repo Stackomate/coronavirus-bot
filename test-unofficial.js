@@ -1,5 +1,5 @@
 const main = async () => {
-    console.log(await require('./unofficial')());
+    addToLog(await require('./unofficial')());
 }
 
 main();

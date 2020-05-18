@@ -178,7 +178,6 @@ const updateMS = async function () {
         await driver.wait(until.elementTextMatches(allCardElements[2], /CASOS CONFIRMADOS/), 45000);
 
         const element = allCardElements[2];
-        console.log('element', (await (element.getAttribute('innerText'))))
         
         if ((await (element.getAttribute('innerText'))).indexOf('CASOS CONFIRMADOS') === -1) {
             throw new Error('Could not find confirmed cases')
@@ -194,7 +193,7 @@ const updateMS = async function () {
             throw new Error('Recovered count is not a number');
         }
 
-        console.log('newMSRecovered', newMSRecovered)
+        addToLog('newMSRecovered', newMSRecovered)
         const eDeaths = allCardElements[3];
 
         if ((await (eDeaths.getAttribute('innerText'))).indexOf('ÓBITOS') === -1) {
@@ -202,11 +201,9 @@ const updateMS = async function () {
         }        
 
         const newDeaths = (await (eDeaths.getAttribute('innerText'))).split('\n')[1].replace(/\./g, '');
-        console.log('Deaths', newDeaths)
 
         allCardElements = await driver.findElements(By.css('.lb-grey span'))
         const eMS = allCardElements[0];
-        console.log('eMS', await eMS.getAttribute('innerText'))
         const newMS = (await (eMS.getAttribute('innerText'))).split(' ').join(' ') + `:00`;
 
         if (newValue === '') {
@@ -237,7 +234,7 @@ const updateMS = async function () {
             value: e.toString(),
         };
         addToLog(item)
-        console.log('Failed to Update:', e)
+        addToLog('Failed to Update:', e)
         await driver.quit();
         return null;
     }
@@ -249,27 +246,21 @@ const updateWorldometer = async function () {
     try {
         await driver.get('https://worldometers.info/coronavirus/country/brazil/')
         await driver.wait(until.elementLocated( By.className('maincounter-number')) )
-        console.log('OK')
         let totalCasesCountElement = (await driver.findElements(By.className('maincounter-number')))[0];
         await driver.wait(until.elementTextMatches(totalCasesCountElement, /.+/), 45000);
         let casesCount = parseInt((await (totalCasesCountElement.getAttribute('innerText'))).replace(/,/g, ''), 10);
-        console.log('casesCount', casesCount)
 
         let deathCountElement = (await driver.findElements(By.className('maincounter-number')))[1];
         await driver.wait(until.elementTextMatches(deathCountElement, /.+/), 45000);
         let deathCount = parseInt((await (deathCountElement.getAttribute('innerText'))).replace(/,/g, ''), 10);
-        console.log('deathCount', deathCount)      
         
         let recoveredCountElement = (await driver.findElements(By.className('maincounter-number')))[2];
         await driver.wait(until.elementTextMatches(recoveredCountElement, /.+/), 45000);
         let recoveredCount = parseInt((await (recoveredCountElement.getAttribute('innerText'))).replace(/,/g, ''), 10);
-        console.log('recoveredCount', recoveredCount)      
         
         let updateTimeElement = await driver.findElement(By.css('#page-top~div'));
         await driver.wait(until.elementTextMatches(updateTimeElement, /.+/), 45000);
         let updateTime = new Date(await (updateTimeElement.getAttribute('innerText'))).toLocaleString('pt-br');
-        console.log('updateTime', updateTime)      
-
 
         if (Number.isNaN(casesCount) || Number.isNaN(deathCount) || Number.isNaN(recoveredCount) ) {
             throw new Error('NaN as result')
@@ -302,7 +293,7 @@ const updateWorldometer = async function () {
             value: e.toString(),
         };
         addToLog(item)
-        console.log('Failed to Update:', e)
+        addToLog('Failed to Update:', e)
         await driver.quit();
         return null;
     }
@@ -354,7 +345,7 @@ const updateRegistry = async function () {
 
         lastRegistryUpdate = result.lastUpdate;
         db.set('registry.update', lastRegistryUpdate).write();
-        console.log('REGISTRY', lastRegistryDeaths, lastRegistryUpdate)
+        addToLog('REGISTRY', lastRegistryDeaths, lastRegistryUpdate)
 
         
     } catch (e) {
@@ -396,7 +387,7 @@ const maybeSendUpdates = async () => {
     const availableChats = db.get('chats').filter((chat) => shouldMessageChatId(chat.id));
     const outdatedChats = availableChats.filter((chat) => chatNumbersAreSame(chat.id) === false).value();
 
-    console.log({
+    addToLog({
         total: db.get('chats').value().length,
         availableNow: availableChats.value().length,
         availableAndOutdated: outdatedChats.length
@@ -454,7 +445,6 @@ const sendUpdates = async (replacement, customMethod) => {
     let writeInterval = 3000;
 
     let saveDBInterval = setInterval(() => {
-        console.log('SAVING DB');
         db.write();
     }, writeInterval)    
 
@@ -475,10 +465,8 @@ const sendUpdates = async (replacement, customMethod) => {
                         errors.add(worked);
                         break;
                 }
-                console.log('finished', p, q, r);
                 missingConnections--;
-                console.log('missing', missingConnections);
-
+                
                 /* Once all requests have been made (succeeded or failed, doesnt matter) */
                 if (missingConnections === 0) {
                     let seconds = (Date.now() - startBenchmark) / 1000;
@@ -510,7 +498,7 @@ const sendUpdates = async (replacement, customMethod) => {
                 }
             }
             /* TODO: How can chats[i] not exist? Cancelled? */
-            console.log('firing', i, total, chats[i] && chats[i].id)
+            addToLog('firing', i, total, chats[i] && chats[i].id)
             /* TODO: Not enough in some cases? */
             if (chats[i] && chats[i].id) {
                 maybeSendCurrentCount(chats[i].id, customMethod).then(
@@ -592,7 +580,7 @@ const shouldMessageChatId = (chatId, log = false) => intervalCheck(chatId, log) 
 const maybeSendCurrentCount = async (chatId, customMethod) => {
     if (shouldMessageChatId(chatId, true)) {
         if (customMethod) {
-            console.log('Using Custom Method', customMethod)
+            addToLog('Using Custom Method', customMethod)
         }
         /* Providing force = false to avoid re-sending to those with same values */
         /* Providing saveDB = false to avoid slowing down during bulk messaging */
@@ -617,13 +605,13 @@ const updateMembersCount = async () => {
 let total = allChats.length
     allChats.forEach((chat) => {
         setTimeout(async () => {
-            console.log('fire for', chat.id, total)
+            addToLog('fire for', chat.id, total)
             let membersCount = await bot.getChatMembersCount(chat.id);
             db.get('chats').find({ id: chat.id }).assign({
                 membersCount
             }).write() //There is a value/write in the end of the function too
             total = total - 1;
-            console.log('wrote for', chat.id, total)
+            addToLog('wrote for', chat.id, total)
         }, 1000 / 10)
     })
 }
@@ -892,7 +880,7 @@ bot.onText(/\/adm_update_graphs/, async (msg, match) => {
     db.set('graphImageFileId', graphFileId).write();
 
 
-    console.log("RETURN ID", answer.photo[0].file_id)
+    addToLog("RETURN ID", answer.photo[0].file_id)
 
     let mapPath = path.join(__dirname, './map.png');
     const answer2 = await bot.sendPhoto(chatId, mapPath, {
@@ -1068,7 +1056,7 @@ bot.on('callback_query', async (query) => {
             sendUpdates(null, customMethod)
 
         } catch (e) {
-            console.log('bot error', e)
+            addToLog('bot error', e)
         } finally {
             await bot.answerCallbackQuery(query.id)
         }
@@ -1326,7 +1314,7 @@ bot.on('callback_query', async (query) => {
 ▪: ${lastRegistryUpdate1}
 
 `
-        console.log('ENTITIES', query.message.entities)
+        addToLog('ENTITIES', query.message.entities)
         let msgWithEntities = reapplyEntities(query.message.text, query.message.entities)
 
         let newMessage = msgWithEntities.split('🔄')[0]+ appendToMessage + '🔄' + msgWithEntities.split('🔄')[1];
@@ -1519,7 +1507,6 @@ bot.onText(/\/horario (\d{1,2}) (\d{1,2})/, async (msg, match) => {
         timeStart = parseInt(timeStart);
         timeEnd = parseInt(timeEnd);
     } catch (e) {
-        console.log('Nao entendi.')
         return;
     };
 
@@ -1797,7 +1784,7 @@ const sendCurrentCount = (force = false, saveDB = true) => async (chatId) => {
 
 
     if (chatNumbersAreSame(chatId) && (force === false)) {
-        console.log('skipping because same value')
+        addToLog('skipping because same value')
         return 'skip';
     }
 
@@ -1818,7 +1805,7 @@ const sendCurrentCount = (force = false, saveDB = true) => async (chatId) => {
     const userSheetsTests = chat.lastUnofficialTests;
     const userRegistryDeaths = chat.lastRegistryDeaths;
 
-    console.log('start lastSheetsTotalDeaths', lastSheetsTotalDeaths, userSheetsDeaths)
+    addToLog('start lastSheetsTotalDeaths', lastSheetsTotalDeaths, userSheetsDeaths)
     const message = strings.startCount({
         lastSheetsCasesCount,
         lastSheetsUpdate,

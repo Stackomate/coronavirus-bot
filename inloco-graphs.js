@@ -19,8 +19,6 @@ const updateDistancingGraphs = async function () {
     try {
         await driver.get('https://mapabrasileirodacovid.inloco.com.br/pt/')
 
-
-
         const getPic = async (frameSelector) => {
             await driver.wait(until.elementLocated(By.className('tab-icon-download')), 45000);
             let downloadIconElement = await driver.findElement(By.className('tab-icon-download'));
@@ -52,22 +50,19 @@ const updateDistancingGraphs = async function () {
         await new Promise((r) => setTimeout(r, 5000));
 
         /* TODO: Improve */
-
         await getPic('iframe');
-
         await driver.sleep(6000);
         await driver.quit();
 
         require('child_process').execSync('mv -f "Visão Geral.png" visao.png', {cwd: inLocoPath})
         require('child_process').execSync('mv -f "Ranking dos estados.png" ranking.png', {cwd: inLocoPath})
 
-
     } catch (e) {
         const item = {
             action: 'fail update',
             value: e.toString(),
         };
-        console.log('Failed to Update:', e)
+        addToLog('Failed to Update:', e)
         await driver.quit();
         return null;
     }
