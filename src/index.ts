@@ -3,21 +3,18 @@ import {Builder, By, until} from 'selenium-webdriver';
 import fs from 'fs';
 import strings from '../strings';
 import { setDefaultValues, mountDBObject } from './utils/dbutils';
-
-//DB imports
 import low from 'lowdb';
-import FileSync from 'lowdb/adapters/FileSync';
-
+import  { adapter } from './utils/dbutils';
+//TODO: find out why I can't import dotenv
 /* Load dotenv before code to apply environment variables */
 require('dotenv').config()
+//TODO: find out why I can't import AsciiTable
+const AsciiTable = require('ascii-table');
 
 /* Secret, Personal Telegram Token given by botfather */
 const token = process.env.BOT_TOKEN;
 
-const AsciiTable = require('ascii-table');
-
 /* DB-Related */
-const adapter = new FileSync('db.json');
 const db = low(adapter);
 setDefaultValues(db);
 mountDBObject(db);

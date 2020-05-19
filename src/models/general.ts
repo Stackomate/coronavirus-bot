@@ -23,4 +23,31 @@ export class General {
     WMRecovered: number;
     WMUpdate: Date;
     beds_supplies: {};
+
+    constructor() {
+        this.count = "-1";
+        this.unofficialCount = "-1";
+        this.unofficialDeaths = "-1";
+        this.deaths = '0';
+        this.MSUpdate = new Date();
+        this.MSRecovered = -1;
+        this.unofficialUpdate = new Date();
+        this.sheetsCount = -1;
+        this.sheetsUpdate = new Date();
+        this.sheetsStateInfo = -1;
+        this.sheetsStateSuspects = -1;
+        this.sheetsStateRecovered = -1;
+        this.sheetsTotalSuspects = -1;
+        this.sheetsTotalRecovered = -1;
+        this.sheetsTotalDeaths = -1;
+        this.sheetsTotalTests =1;
+        this.mapImageFileId = -1;
+        this.graphImageFileId = -1;
+        this.graphsUpdateTime = -1;
+        this.WMCount = -1;
+        this.WMDeaths = -1;
+        this.WMRecovered = -1;
+        this.WMUpdate = new Date();
+        this.beds_supplies = [];
+    }
 }

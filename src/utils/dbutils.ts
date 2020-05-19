@@ -1,42 +1,12 @@
 import low from 'lowdb';
+import FileSync from 'lowdb/adapters/FileSync';
+import { DBObject } from '../models/dbObject';
 
+export const adapter = new FileSync('db.json')
+
+// Set some defaults (required if your JSON file is empty)
 export function setDefaultValues(db: low.LowdbSync<any>) {
-    db.defaults({
-        chats: [],
-        count: -1,
-        unofficialCount: -1,
-        unofficialStateInfo: -1,
-        unofficialDeaths: -1,
-        deaths: '0',
-        MSUpdate: new Date().toString(),
-        MSRecovered: -1,
-        unofficialUpdate: '',
-        sheetsCount: -1,
-        sheetsUpdate: new Date().toString(),
-        sheetsStateInfo: -1,
-        sheetsStateSuspects: -1,
-        sheetsStateRecovered: -1,
-        sheetsTotalSuspects: -1,
-        sheetsTotalRecovered: -1,
-        sheetsTotalDeaths: -1,
-        sheetsTotalTests: -1,
-        mapImageFileId: -1,
-        graphImageFileId: -1,
-        graphsUpdateTime: -1,
-        WMCount: -1,
-        WMDeaths: -1,
-        WMRecovered: -1,
-        WMUpdate: new Date().toString(),
-        beds_supplies: {},
-        socialDistancing: {
-            graph: null,
-            ranking: null
-        },
-        registry: {
-            deaths: -1,
-            update: new Date().toString()
-        }
-    }).write()   
+    db.defaults(new DBObject()).write()   
 }
 
 export function mountDBObject(db: low.LowdbSync<any>) {
