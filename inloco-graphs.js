@@ -16,7 +16,9 @@ const capabilities = new Capabilities();
 /** Update Beds and Supplies */
 const updateDistancingGraphs = async function () {
     let driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
+
     try {
+        await driver.manage().window().setRect({width: 1440, height: 900})
         await driver.get('https://mapabrasileirodacovid.inloco.com.br/pt/')
 
 
@@ -31,14 +33,7 @@ const updateDistancingGraphs = async function () {
             await driver.wait(until.elementLocated(By.css('[data-tb-test-id="DownloadImage-Button"]')), 45000);
             let downloadButtonElement = await driver.findElement(By.css('[data-tb-test-id="DownloadImage-Button"]'));
             await downloadButtonElement.click();
-
-            // await driver.switchTo().defaultContent();
         }
-
-        /* Accept cookies */
-        // driver.wait(until.elementLocated(By.id('hs-eu-confirmation-button')), 45000)
-        // const cookieBtn = await driver.findElement(By.id('hs-eu-confirmation-button'));
-        // await cookieBtn.click();
 
         /* Images are inside frame */
         await driver.switchTo().frame(driver.findElement(By.css('iframe')));
@@ -48,7 +43,7 @@ const updateDistancingGraphs = async function () {
         let loadingEl = await driver.findElement(By.id('loadingGlassPane'));
         await driver.wait(until.elementIsNotVisible(loadingEl));
         await driver.sleep(5000);
-        await (await driver.findElement(By.id('tableauTabbedNavigation_tab_1'))).click()
+        await (await driver.findElement(By.id('tableauTabbedNavigation_tab_1'))).click()      
         await new Promise((r) => setTimeout(r, 5000));
 
         /* TODO: Improve */
