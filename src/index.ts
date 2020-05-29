@@ -12,7 +12,7 @@ require('dotenv').config()
 const AsciiTable = require('ascii-table');
 
 /* Secret, Personal Telegram Token given by botfather */
-const token = process.env.BOT_TOKEN;
+const token: string | undefined = process.env.BOT_TOKEN;
 
 /* DB-Related */
 const db = low(adapter);
@@ -20,8 +20,10 @@ setDefaultValues(db);
 mountDBObject(db);
 
 /** Used for /debug command */
+//TODO: add types
 let lastDebug = {}
 /** Used by admin to send bulk messages */
+//TODO: add types
 let admBulkMessages = {}
 
 /* 
