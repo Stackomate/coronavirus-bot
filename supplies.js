@@ -6,8 +6,6 @@ const updateSupplies = async function () {
     try {
         await driver.get('https://covid-insumos.saude.gov.br/paineis/insumos/painel.php')
 
-
-
         const getFrameValue = async (frameId) => {
             await driver.wait(until.elementLocated(By.id(frameId)), 45000);
 
@@ -54,9 +52,6 @@ const updateSupplies = async function () {
             tempBeds,
             icuBeds           
         }
-
-        console.log(result)
-
         return result;
 
     } catch (e) {
@@ -64,7 +59,6 @@ const updateSupplies = async function () {
             action: 'fail update',
             value: e.toString(),
         };
-        console.log('Failed to Update:', e)
         await driver.quit();
         return null;
     }

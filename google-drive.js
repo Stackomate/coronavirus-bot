@@ -13,8 +13,6 @@ const SCOPES = ['https://www.googleapis.com/auth/drive.readonly'];
 // time.
 const TOKEN_PATH = 'token.json';
 
-
-
 /**
  * Create an OAuth2 client with the given credentials, and then execute the
  * given callback function.
@@ -45,7 +43,6 @@ function getAccessToken(oAuth2Client, callback) {
     access_type: 'offline',
     scope: SCOPES,
   });
-  console.log('Authorize this app by visiting this url:', authUrl);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -58,7 +55,7 @@ function getAccessToken(oAuth2Client, callback) {
       // Store the token to disk for later program executions
       fs.writeFile(TOKEN_PATH, JSON.stringify(token), (err) => {
         if (err) return console.error(err);
-        console.log('Token stored to', TOKEN_PATH);
+        addToLog('Token stored to', TOKEN_PATH);
       });
       callback(oAuth2Client);
     });
@@ -75,15 +72,15 @@ function listFiles(auth) {
     pageSize: 10,
     fields: 'nextPageToken, files(id, name)',
   }, (err, res) => {
-    if (err) return console.log('The API returned an error: ' + err);
+    if (err) return addToLog('The API returned an error: ' + err);
     const files = res.data.files;
     if (files.length) {
-      console.log('Files:');
+      addToLog('Files:');
       files.map((file) => {
-        console.log(`${file.name} (${file.id})`);
+        addToLog(`${file.name} (${file.id})`);
       });
     } else {
-      console.log('No files found.');
+      addToLog('No files found.');
     }
   });
 }
@@ -172,7 +169,7 @@ function downloadFile(resolve, reject) {
       })
 
     }).catch(e => {
-      console.log('ERRORED', e)
+      addToLog('ERRORED', e)
       reject(e);
     })
   }
