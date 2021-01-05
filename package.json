@@ -16,7 +16,7 @@
     "@types/node-telegram-bot-api": "^0.40.3",
     "@types/selenium-webdriver": "^4.0.9",
     "ascii-table": "0.0.9",
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "body-parser": "^1.19.0",
     "csv-parser": "^2.3.2",
     "dotenv": "^8.2.0",
