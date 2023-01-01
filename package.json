@@ -27,8 +27,8 @@
     "selenium-webdriver": "^4.0.0-alpha.7"
   },
   "devDependencies": {
-    "source-map-loader": "^0.2.4",
-    "ts-loader": "^7.0.4",
+    "source-map-loader": "^4.0.1",
+    "ts-loader": "^9.4.2",
     "typescript": "^3.9.2"
   }
 }
